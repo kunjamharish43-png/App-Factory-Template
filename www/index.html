@@ -1,15 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My AI App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LumenScan — Every Page, Perfected</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        ink: '#0e1116',
+        slate950: '#0b0d12',
+        panel: '#151a22',
+        line: '#273141',
+        mint: '#9be7c0',
+        gold: '#f5c451'
+      },
+      keyframes: {
+        floaty: { '0%,100%': { transform: 'translateY(0) rotate(-4deg)' }, '50%': { transform: 'translateY(-14px) rotate(-3deg)' } },
+        rise: { '0%': { opacity: '0', transform: 'translateY(18px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+        shimmer: { '100%': { backgroundPosition: '200% 0' } },
+        spinSlow: { '100%': { transform: 'rotate(360deg)' } },
+        blink: { '0%,100%': { opacity: '1' }, '50%': { opacity: '.25' } }
+      },
+      animation: {
+        'rise': 'rise .5s cubic-bezier(.2,.8,.2,1) forwards',
+        'spin-slow': 'spinSlow 8s linear infinite',
+        'blink': 'blink 1.2s ease-in-out infinite'
+      }
+    }
+  }
+}
+</script>
+<style>
+  html,body{ -webkit-tap-highlight-color: transparent; }
+  .tab{ transition: all .35s cubic-bezier(.2,.9,.25,1.35); opacity:.45; transform: translateY(2px); }
+  .tab.active{ opacity:1; transform: translateY(-6px); filter: drop-shadow(0 8px 12px rgba(155,231,192,.35)); }
+  .scanline{ position:absolute; left:0; right:0; height:2px; background: linear-gradient(90deg, transparent, #9be7c0, transparent); box-shadow:0 0 22px 5px rgba(155,231,192,.55); }
+  .sheet{ transition: transform .5s cubic-bezier(.2,.9,.2,1), opacity .4s ease; }
+  .scrollbar-hide::-webkit-scrollbar{ display:none; }
+  .grain{ background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E"); }
+</style>
 </head>
-<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center p-6">
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full text-center shadow-xl">
-    <h1 class="text-2xl font-bold text-indigo-400">App Factory Ready!</h1>
-    <p class="text-slate-400 mt-2 text-sm">Aapka pehla real Android APK GitHub se successfully build ho gaya hai.</p>
+<body class="bg-slate-950 text-neutral-100 font-sans selection:bg-mint/30">
+
+<!-- ambient desktop stage -->
+<div class="hidden md:flex min-h-screen items-center justify-center bg-[radial-gradient(120%_120%_at_50%_0%,#12202c_0%,#0b0d12_55%,#080a0e_100%)] gap-10 p-10 overflow-hidden">
+  <div class="w-[240px] max-w-[30vw]">
+    <div class="flex items-center gap-3 mb-6">
+      <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-mint to-emerald-500 grid place-items-center shadow-lg shadow-mint/30">
+        <svg viewBox="0 0 24 24" class="w-7 h-7 text-ink" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8V5a1 1 0 011-1h3M20 8V5a1 1 0 00-1-1h-3M4 16v3a1 1 0 001 1h3M20 16v3a1 1 0 01-1 1h-3" stroke-linecap="round"/><path d="M8 12h8" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <div class="text-2xl font-black tracking-tight mb-0.5">Lumen<span class="text-mint">Scan</span></div>
+        <div class="text-[11px] text-neutral-500 tracking-widest uppercase">Mobile · Scan Engine 4.0</div>
+      </div>
+    </div>
+    <h2 class="text-[34px] leading-[1.06] font-black tracking-tight text-balance">Every page,<br>perfectly<span class="text-mint">readable.</span></h2>
+    <p class="mt-4 text-neutral-400 text-[15px] leading-relaxed max-w-[300px]">Point, tap, done. Invisible background removal, true-to-tone OCR in 40+ languages, PDF, Word &amp; OCR output — 100% free, offline-first.</p>
+    <div class="mt-6 space-y-2.5 text-[13px]">
+      <div class="flex items-center gap-2.5"><span class="w-5 h-5 rounded-md bg-mint/15 text-mint grid place-items-center text-[11px] font-bold">✓</span> Auto edge detection &amp; straightening</div>
+      <div class="flex items-center gap-2.5"><span class="w-5 h-5 rounded-md bg-mint/15 text-mint grid place-items-center text-[11px] font-bold">✓</span> Erase pencil, highlight &amp; glare</div>
+      <div class="flex items-center gap-2.5"><span class="w-5 h-5 rounded-md bg-mint/15 text-mint grid place-items-center text-[11px] font-bold">✓</span> Unlimited pages, encrypted storage</div>
+    </div>
+    <div class="mt-7 flex flex-wrap gap-2">
+      <span class="text-[11px] px-2.5 py-1 rounded-full bg-white/5 border border-line text-neutral-400">Free Forever</span>
+      <span class="text-[11px] px-2.5 py-1 rounded-full bg-white/5 border border-line text-neutral-400">No Watermark</span>
+      <span class="text-[11px] px-2.5 py-1 rounded-full bg-white/5 border border-line text-neutral-400">Privacy First</span>
+    </div>
   </div>
-</body>
-</html>
+</div>
+
+<!-- ═══════════════ PHONE ═══════════════ -->
+<div class="relative mx-auto w-full h-screen max-w-[430px] md:h-[880px] md:max-h-[88vh] md:my-[3.5vh]">
+  <div class="relative w-full h-full rounded-[3rem] bg-[#05070a] border-[3px] border-neutral-800 shadow-[0_45px_120px_-20px_rgba(0,0,0,.85)] overflow-hidden isolate">
+    <!-- dynamic island -->
+    <div class="absolute top-[11px] left-1/2 -translate-x-1/2 w-30 h-[28px] bg-black rounded-full z-50 shadow-inner"></div>
+
+    <!-- ═════ VIEW: HOME ═════ -->
+    <section id="view-home" class="screen h-full">
+      <div class="relative h-full flex flex-col">
+        <!-- ambient background -->
+        <div class="absolute -top-16 -left-16 w-64 h-64 rounded-full bg-mint/10 blur-3
