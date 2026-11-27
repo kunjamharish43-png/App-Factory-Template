@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Native Kotlin APK
 
 on:
   push:
@@ -13,89 +13,204 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Read App Config & Setup Android
-        run: |
-          APP_NAME="My AI App"
-          PKG_ID="com.myai.app"
-          if [ -f "app_config.json" ]; then
-            APP_NAME=$(jq -r '.appName // "My AI App"' app_config.json)
-            PKG_ID=$(jq -r '.packageId // "com.myai.app"' app_config.json)
-          fi
-          echo "Building: $APP_NAME ($PKG_ID)"
-          npm install
-          npx cap init "$APP_NAME" "$PKG_ID" --web-dir www
-          npx cap add android
-          npx cap sync
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
 
-      - name: Add Camera, Storage & Online Permissions
-        run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' "$MANIFEST"
-          sed -i 's/<uses-permission android:name="android.permission.INTERNET" \/>/<uses-permission android:name="android.permission.INTERNET" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" \/>/' "$MANIFEST"
-
-      - name: Generate Custom App Logo
+      - name: Generate Native Android Project & Logo
         run: |
           pip install pillow
           python3 - << 'EOF'
-          import json, os, shutil
+          import json, os, re
           from PIL import Image, ImageDraw, ImageFont
 
-          app_name, color = "AI", "#6366f1"
+          app_name = "My Native App"
+          pkg_id = "com.myai.nativeapp"
+          color = "#6366f1"
+
           if os.path.exists("app_config.json"):
               with open("app_config.json") as f:
                   cfg = json.load(f)
-                  app_name = cfg.get("appName", "AI")
-                  color = cfg.get("iconColor", "#6366f1")
+                  app_name = cfg.get("appName", app_name)
+                  pkg_id = cfg.get("packageId", pkg_id)
+                  color = cfg.get("iconColor", color)
 
+          pkg_path = pkg_id.replace(".", "/")
+          src_dir = f"app/src/main/java/{pkg_path}"
+          os.makedirs(src_dir, exist_ok=True)
+          os.makedirs("app/src/main/res/xml", exist_ok=True)
+
+          # 1. gradle.properties
+          with open("gradle.properties", "w") as f:
+              f.write("org.gradle.jvmargs=-Xmx2048m\nandroid.useAndroidX=true\nkotlin.code.style=official\n")
+
+          # 2. settings.gradle.kts
+          with open("settings.gradle.kts", "w") as f:
+              f.write('''pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "NativeFactoryApp"
+          include(":app")
+          ''')
+
+          # 3. Root build.gradle.kts
+          with open("build.gradle.kts", "w") as f:
+              f.write('''plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          ''')
+
+          # 4. App build.gradle.kts (Jetpack Compose + Google ML Kit Scanner + Coil)
+          with open("app/build.gradle.kts", "w") as f:
+              f.write(f'''plugins {{
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }}
+          android {{
+              namespace = "{pkg_id}"
+              compileSdk = 34
+              defaultConfig {{
+                  applicationId = "{pkg_id}"
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }}
+              buildTypes {{
+                  release {{ isMinifyEnabled = false }}
+              }}
+              compileOptions {{
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }}
+              kotlinOptions {{ jvmTarget = "17" }}
+              buildFeatures {{ compose = true }}
+              composeOptions {{ kotlinCompilerExtensionVersion = "1.5.14" }}
+          }}
+          dependencies {{
+              implementation("androidx.core:core-ktx:1.13.1")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
+              implementation("androidx.activity:activity-compose:1.9.0")
+              implementation(platform("androidx.compose:compose-bom:2024.06.00"))
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.ui:ui-graphics")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.material:material-icons-extended")
+              implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
+              implementation("io.coil-kt:coil-compose:2.6.0")
+          }}
+          ''')
+
+          # 5. file_paths.xml (PDF aur Image share karne ke liye)
+          with open("app/src/main/res/xml/file_paths.xml", "w") as f:
+              f.write('''<?xml version="1.0" encoding="utf-8"?>
+          <paths>
+              <cache-path name="cache" path="." />
+              <files-path name="files" path="." />
+              <external-files-path name="external_files" path="." />
+          </paths>
+          ''')
+
+          # 6. AndroidManifest.xml
+          safe_name = app_name.replace("&", "&amp;").replace("<", "&lt;").replace('"', "")
+          with open("app/src/main/AndroidManifest.xml", "w") as f:
+              f.write(f'''<?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.CAMERA" />
+              <application
+                  android:label="{safe_name}"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:usesCleartextTraffic="true"
+                  android:theme="@android:style/Theme.Material.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+                  <provider
+                      android:name="androidx.core.content.FileProvider"
+                      android:authorities="${{applicationId}}.provider"
+                      android:exported="false"
+                      android:grantUriPermissions="true">
+                      <meta-data
+                          android:name="android.support.FILE_PROVIDER_PATHS"
+                          android:resource="@xml/file_paths" />
+                  </provider>
+              </application>
+          </manifest>
+          ''')
+
+          # 7. Place MainActivity.kt & fix package name automatically
+          kt_code = '''package ''' + pkg_id + '''
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.material3.*
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.ui.*
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent { Surface { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Ready for Native AI Build") } } }
+              }
+          }
+          '''
+          if os.path.exists("MainActivity.kt"):
+              with open("MainActivity.kt") as f:
+                  kt_code = f.read()
+              if re.search(r'^package\s+[\w.]+', kt_code, re.M):
+                  kt_code = re.sub(r'^package\s+[\w.]+', f'package {pkg_id}', kt_code, count=1, flags=re.M)
+              else:
+                  kt_code = f'package {pkg_id}\n\n' + kt_code
+
+          with open(f"{src_dir}/MainActivity.kt", "w") as f:
+              f.write(kt_code)
+
+          # 8. Generate Custom App Logo
           words = [w for w in app_name.strip().split() if w]
           initials = (words[0][0] + (words[1][0] if len(words) > 1 else (words[0][1] if len(words[0]) > 1 else ""))).upper()
-
           img = Image.new("RGBA", (512, 512), color)
           draw = ImageDraw.Draw(img)
-          draw.ellipse((36, 36, 476, 476), fill=(255, 255, 255, 30))
-
+          draw.ellipse((36, 36, 476, 476), fill=(255, 255, 255, 35))
           try:
               font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 210)
           except:
               font = ImageFont.load_default()
-
           bbox = draw.textbbox((0, 0), initials, font=font)
           w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
           draw.text(((512 - w) / 2, (512 - h) / 2 - 20), initials, fill="white", font=font)
 
-          res_dir = "android/app/src/main/res"
-          anydpi = os.path.join(res_dir, "mipmap-anydpi-v26")
-          if os.path.exists(anydpi):
-              shutil.rmtree(anydpi)
-
           sizes = {"mipmap-mdpi": 48, "mipmap-hdpi": 72, "mipmap-xhdpi": 96, "mipmap-xxhdpi": 144, "mipmap-xxxhdpi": 192}
           for folder, sz in sizes.items():
-              p = os.path.join(res_dir, folder)
-              if os.path.exists(p):
-                  resized = img.resize((sz, sz), Image.LANCZOS)
-                  resized.save(os.path.join(p, "ic_launcher.png"))
-                  resized.save(os.path.join(p, "ic_launcher_round.png"))
+              p = f"app/src/main/res/{folder}"
+              os.makedirs(p, exist_ok=True)
+              resized = img.resize((sz, sz), Image.LANCZOS)
+              resized.save(f"{p}/ic_launcher.png")
+              resized.save(f"{p}/ic_launcher_round.png")
           EOF
 
-      - name: Build Debug APK
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
+      - name: Build Native Debug APK
+        run: gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
