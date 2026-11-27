@@ -24,12 +24,69 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Dependencies & Add Android
+      - name: Read App Config & Setup Android
         run: |
+          APP_NAME="My AI App"
+          PKG_ID="com.myai.app"
+          if [ -f "app_config.json" ]; then
+            APP_NAME=$(jq -r '.appName // "My AI App"' app_config.json)
+            PKG_ID=$(jq -r '.packageId // "com.myai.app"' app_config.json)
+          fi
+          echo "Building: $APP_NAME ($PKG_ID)"
           npm install
-          npx cap init "My AI App" "com.myai.app" --web-dir www
+          npx cap init "$APP_NAME" "$PKG_ID" --web-dir www
           npx cap add android
           npx cap sync
+
+      - name: Add Camera, Storage & Online Permissions
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' "$MANIFEST"
+          sed -i 's/<uses-permission android:name="android.permission.INTERNET" \/>/<uses-permission android:name="android.permission.INTERNET" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" \/>/' "$MANIFEST"
+
+      - name: Generate Custom App Logo
+        run: |
+          pip install pillow
+          python3 - << 'EOF'
+          import json, os, shutil
+          from PIL import Image, ImageDraw, ImageFont
+
+          app_name, color = "AI", "#6366f1"
+          if os.path.exists("app_config.json"):
+              with open("app_config.json") as f:
+                  cfg = json.load(f)
+                  app_name = cfg.get("appName", "AI")
+                  color = cfg.get("iconColor", "#6366f1")
+
+          words = [w for w in app_name.strip().split() if w]
+          initials = (words[0][0] + (words[1][0] if len(words) > 1 else (words[0][1] if len(words[0]) > 1 else ""))).upper()
+
+          img = Image.new("RGBA", (512, 512), color)
+          draw = ImageDraw.Draw(img)
+          draw.ellipse((36, 36, 476, 476), fill=(255, 255, 255, 30))
+
+          try:
+              font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 210)
+          except:
+              font = ImageFont.load_default()
+
+          bbox = draw.textbbox((0, 0), initials, font=font)
+          w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+          draw.text(((512 - w) / 2, (512 - h) / 2 - 20), initials, fill="white", font=font)
+
+          res_dir = "android/app/src/main/res"
+          anydpi = os.path.join(res_dir, "mipmap-anydpi-v26")
+          if os.path.exists(anydpi):
+              shutil.rmtree(anydpi)
+
+          sizes = {"mipmap-mdpi": 48, "mipmap-hdpi": 72, "mipmap-xhdpi": 96, "mipmap-xxhdpi": 144, "mipmap-xxxhdpi": 192}
+          for folder, sz in sizes.items():
+              p = os.path.join(res_dir, folder)
+              if os.path.exists(p):
+                  resized = img.resize((sz, sz), Image.LANCZOS)
+                  resized.save(os.path.join(p, "ic_launcher.png"))
+                  resized.save(os.path.join(p, "ic_launcher_round.png"))
+          EOF
 
       - name: Build Debug APK
         run: |
